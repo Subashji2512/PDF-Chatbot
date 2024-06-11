@@ -9,6 +9,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
+from pydantic import ValidationError
 
 # Load environment variables
 load_dotenv()
@@ -17,8 +18,6 @@ if api_key:
     genai.configure(api_key=api_key)
 else:
     st.error("Google API key not found. Please check your .env file.")
-    
-
 
 def get_pdf_text(pdf_docs):
     text = ""
@@ -77,11 +76,14 @@ def main():
         st.write(f"Question: {user_question}")
 
         # Get the response from the model
-        response_text = user_input(user_question)
-        
-        # Add model's response to chat history and display it without the prefix
-        st.session_state.chat_history.append(f"Answer: {response_text}")
-        st.write(f"Answer: {response_text}")
+        try:
+            response_text = user_input(user_question)
+            # Add model's response to chat history and display it without the prefix
+            st.session_state.chat_history.append(f"Answer: {response_text}")
+            st.write(f"Answer: {response_text}")
+        except ValidationError as e:
+            st.error(f"Validation error: {e}")
+
     with st.sidebar:
         st.title("Menu:")
         pdf_docs = st.file_uploader("Upload your PDF Files and Click on the Submit & Process Button", accept_multiple_files=True)
