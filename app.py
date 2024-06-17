@@ -4,7 +4,7 @@ import os
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 import google.generativeai as genai
-from langchain_community.vectorstores import FAISS
+from langchain.vectorstores import FAISS
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
@@ -17,8 +17,6 @@ if api_key:
     genai.configure(api_key=api_key)
 else:
     st.error("Google API key not found. Please check your .env file.")
-    
-
 
 def get_pdf_text(pdf_docs):
     text = ""
@@ -40,29 +38,42 @@ def get_vector_store(text_chunks):
 
 def get_conversational_chain():
     prompt_template = """
-    Answer the question as detailed as possible from the provided context, make sure to provide all the details, if the answer is not in
-    provided context just say, "provide Questions from the pdf im not Chat-GPTor please wait for 5 minutes and ask the question again", don't provide the wrong answer\n\n
-    Context:\n {context}?\n
-    Question: \n{question}\n
-
+    Answer the question as detailed as possible from the provided context, make sure to provide all the details. If the answer is not in
+    the provided context, just say, "The answer is not in the provided context. Please wait for 5 minutes and ask the question again."
+    Don't provide the wrong answer.\n\n
+    Context:\n {context}\n
+    Question:\n {question}\n
     Answer:
     """
     model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
-    chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
+    
+    try:
+        chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
+    except Exception as e:
+        st.error(f"Error creating conversational chain: {e}")
+        raise
+    
     return chain
 
 def user_input(user_question):
     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    new_db = FAISS.load_local("faiss_index", embeddings)
+    new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
     docs = new_db.similarity_search(user_question)
     chain = get_conversational_chain()
-    response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
+    
+    try:
+        response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
+    except Exception as e:
+        st.error(f"Error in chain processing: {e}")
+        raise
+    
     return response["output_text"]
 
 def main():
-    st.set_page_config("Chat PDF",page_icon=":brain:",layout="centered")
+    st.set_page_config(page_title="Chat PDF", page_icon=":brain:", layout="centered")
     st.header("Chat with PDF using Gemini💁")
+    
     # Initialize chat session in Streamlit if not already present
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
@@ -70,9 +81,11 @@ def main():
     # Display the chat history
     for message in st.session_state.chat_history:
         st.write(message)
+        
     user_question = st.text_input("Ask a Question from the PDF Files")
+    
     if user_question:
-         # Add user's message to chat history and display it
+        # Add user's message to chat history and display it
         st.session_state.chat_history.append(f"Question: {user_question}")
         st.write(f"Question: {user_question}")
 
@@ -82,6 +95,7 @@ def main():
         # Add model's response to chat history and display it without the prefix
         st.session_state.chat_history.append(f"Answer: {response_text}")
         st.write(f"Answer: {response_text}")
+
     with st.sidebar:
         st.title("Menu:")
         pdf_docs = st.file_uploader("Upload your PDF Files and Click on the Submit & Process Button", accept_multiple_files=True)
