@@ -61,7 +61,7 @@ def user_input(user_question):
     return response["output_text"]
 
 def main():
-    st.set_page_config("Chat PDF",page_icon=":brain:",layout="centered")
+    st.set_page_config("Chat PDF",page_icon=":brain",layout="centered")
     st.header("Chat with PDF using Gemini💁")
     # Initialize chat session in Streamlit if not already present
     if "chat_history" not in st.session_state:
